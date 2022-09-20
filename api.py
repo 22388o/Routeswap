@@ -17,9 +17,17 @@ def create_new_swap(data: SwapSchema):
         data.feerate
     )
     if (payment_request.get("message") != None):
-        raise HTTPException(500, detail=payment_request)
+        raise HTTPException(500, detail=payment_request["message"])
     else:
         return payment_request
 
+@api.get("/api/v1/lookup/{txid}")
+def get_lookup(txid):
+    lookup = swap.get_lookup(txid)
+    if (lookup.get("message") != None):
+        raise HTTPException(500, detail=lookup["message"])
+    else:
+        return lookup
+    
 def start():
     uvicorn.run(api, host=API_HOST, port=API_PORT)
