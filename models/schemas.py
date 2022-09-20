@@ -6,9 +6,9 @@ class SwapSchema(BaseModel):
     base: str
     quote: str
     address: str
-    amount: PositiveFloat
-    feerate: Optional[PositiveFloat]
-
+    amount: Optional[PositiveFloat] = 0
+    feerate: Optional[PositiveFloat] = 0
+    
     @validator("base")
     def validator_base(cls, base: str):
         if not (base in SUPPORTED_CURRENCIES):
