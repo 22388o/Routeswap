@@ -6,7 +6,7 @@ from os import environ
 # of the current directory.
 load_dotenv(environ.get("ENV_PATH", ".env"))
 
-from services import lnd
+from services import lnd, bitcoin
 import api
 
 def start():
@@ -17,6 +17,10 @@ def start():
     threads.append(thread)
 
     thread = Thread(target=lnd.start)
+    thread.start()
+    threads.append(thread)
+    
+    thread = Thread(target=bitcoin.start)
     thread.start()
     threads.append(thread)
     
