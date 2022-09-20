@@ -1,7 +1,9 @@
 from os.path import expanduser, isfile
-from os import environ
+from os import environ, makedirs
 
 import codecs
+
+makedirs("./data", exist_ok=True)
 
 # API configuration.
 API_HOST = environ.get("API_HOST", "0.0.0.0")
