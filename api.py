@@ -9,17 +9,11 @@ api = FastAPI()
 
 @api.post("/api/v1/swap/create")
 def create_new_swap(data: SwapSchema):
-    payment_request = swap.create_swap(
-        data.base, 
-        data.quote, 
-        data.address, 
-        data.amount,
-        data.feerate
-    )
-    if (payment_request.get("message") != None):
-        raise HTTPException(500, detail=payment_request["message"])
+    swap_details_payment = swap.create_swap(data.base, data.quote, data.address, data.amount, data.feerate)
+    if (swap_details_payment.get("message") != None):
+        raise HTTPException(500, detail=swap_details_payment["message"])
     else:
-        return payment_request
+        return swap_details_payment
 
 @api.get("/api/v1/lookup/{txid}")
 def get_lookup(txid):
