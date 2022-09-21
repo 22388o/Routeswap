@@ -1,4 +1,3 @@
-from os import urandom
 from services.lightning import create_invoice, decode_invoice
 from services.bitcoin import bitcoin, get_balance, get_estimate_fee, get_new_address
 from helpers.helpers import sats_to_btc, btc_to_sats
@@ -11,6 +10,7 @@ from configs import SERVICE_FEE_RATE, SERVICE_MIN_FEE_RATE, TRADE_MIN_BTC
 from tinydb import Query
 from time import time
 from json import dumps
+from os import urandom
 
 def create_swap(base: str, quote: str, address: str, amount: float, feerate: float = 0) -> dict:
     if ((base == "LN-BTC") and (quote == "BTC")) and (feerate >= 1):
