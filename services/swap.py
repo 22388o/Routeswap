@@ -38,8 +38,15 @@ def create_swap(base: str, quote: str, address: str, amount: float, feerate: flo
         service_fee_and_tx_amount = (service_fee_amount + estimate_fee_btc + amount)
         
         expiry = (60 * 15)
-        metadata = {"address": address, "amount": amount, "feerate": feerate, "base": "LN-BTC", "quote": "BTC"}
         timestamp = time()
+        metadata = {
+            "address": address, 
+            "amount": amount, 
+            "feerate": feerate, 
+            "base": "LN-BTC", 
+            "quote": "BTC",
+            "created_at": timestamp
+        }
         payment_request = create_invoice(service_fee_and_tx_amount, expiry=expiry, metadata=metadata, typeof="loop-out")
         return {"id": payment_request["payment_hash"], "payment_request": payment_request["payment_request"], "expiry": timestamp + expiry}
     
@@ -71,8 +78,16 @@ def create_swap(base: str, quote: str, address: str, amount: float, feerate: flo
             service_fee_amount = SERVICE_MIN_FEE_RATE
 
         address = get_new_address()["address"]
-
-        payload = {"id": urandom(16).hex(), "amount": amount, "invoice": invoice, "fee": service_fee_amount, "base": base, "quote": quote, "type": "loop-in"}
+        payload = {
+            "id": urandom(16).hex(), 
+            "amount": amount, 
+            "invoice": invoice, 
+            "fee": service_fee_amount, 
+            "base": base, 
+            "quote": quote, 
+            "type": "loop-in",
+            "created_at": time()
+        }
         redis.set(f"torch.light.address.{address}", dumps(payload))
         redis.expire(f"torch.light.address.{address}", expiry)
         return {"id": payload["id"], "address": address, "amount": amount + service_fee_amount, "expiry": timestamp + expiry}
