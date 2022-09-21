@@ -6,6 +6,7 @@ from database import db
 from bitcoin import Bitcoin
 from configs import BTC_HOST, BTC_PASS, BTC_USER, SERVICE_FEE_RATE
 from json import loads
+from time import time
 
 bitcoin = Bitcoin(BTC_HOST)
 bitcoin.auth(BTC_USER, BTC_PASS)
@@ -48,15 +49,19 @@ def start():
                 if (pay["status"] != "SUCCEEDED"):
                     continue
                 
-                db.insert({
+                tx = {
                     "id": payload["id"],
                     "invoice": invoice, 
                     "amount": sats_to_btc(amount),
                     "feerate": sats_to_btc(fee_limit_sat),
                     "txid": txid,
                     "type": payload["type"],
-                    "status": "settled"
-                })
+                    "status": "settled",
+                    "created_at": payload["created_at"],
+                    "updated_at": time()
+                }
+                db.insert(tx)
+                    
 
 def get_balance() -> dict:
     return lnd.wallet_balance()
