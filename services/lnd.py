@@ -1,9 +1,11 @@
 from helpers.helpers import btc_to_sats, sats_to_btc
 from services.redis import redis
-from configs import LN_BACKEND, LND_HOST, LND_MACAROON, LND_CERTIFICATE
 from database import db
+from configs import LN_BACKEND, LND_HOST, LND_MACAROON, LND_CERTIFICATE
+
 from base64 import b64decode
 from json import dumps, loads
+from time import time
 from lnd import Lnd
 
 lnd = Lnd(LND_HOST, LND_MACAROON, LND_CERTIFICATE)
@@ -44,15 +46,18 @@ def start():
             redis.delete(f"torch.light.invoice.{payment_hash}")
             if (metadata["quote"] == "BTC"):
                 tx = lnd.send_coins(address, amount, sat_per_vbyte=feerate)
-                db.insert({
+                tx = {
                     "id": payment_hash,
                     "address": address, 
                     "amount": sats_to_btc(amount),
                     "feerate":  feerate,
                     "txid": tx["txid"],
                     "type": payload["type"],
-                    "status": "settled"
-                })
+                    "status": "settled",
+                    "created_at": metadata["created_at"],
+                    "updated_at": time()
+                }
+                db.insert(tx)
             
 def create_invoice(amount: float, memo="", expiry=86400, metadata={}, typeof="loop-out") -> dict:
     amount = round(amount * pow(10, 8))
@@ -68,7 +73,7 @@ def create_invoice(amount: float, memo="", expiry=86400, metadata={}, typeof="lo
     
     # Get the hashed payment.
     payment_hash = b64decode(invoice["r_hash"]).hex()
-
+    
     # Relate payment_hash to user id.
     redis.set(f"torch.light.invoice.{payment_hash}", dumps(payload))
     redis.expire(f"torch.light.invoice.{payment_hash}", expiry)
