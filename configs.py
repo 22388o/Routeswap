@@ -17,11 +17,10 @@ REDIS_PASS = environ.get("REDIS_PASS", "")
 # Currencies configuration.
 SUPPORTED_CURRENCIES = environ.get("SUPPORTED_CURRENCIES", "LN-BTC,BTC").split(",")
 
+# Loop configuration.
+LOOP_MIN_BTC = float(environ.get("LOOP_MIN_BTC", 0.00010000))
 SERVICE_FEE_RATE = float(environ.get("SERVICE_FEE_RATE", 1))
 SERVICE_MIN_FEE_RATE = float(environ.get("SERVICE_MIN_FEE_RATE", 0.00000500))
-
-# Swap configuration.
-TRADE_MIN_BTC = float(environ.get("TRADE_MIN_BTC", 0.00010000))
 
 # Bitcoin configuration.
 BTC_HOST = environ.get("BTC_HOST")
