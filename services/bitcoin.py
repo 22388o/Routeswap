@@ -14,7 +14,7 @@ bitcoin.auth(BTC_USER, BTC_PASS)
 def start():
     for data in lnd.transactions_subscribe().iter_lines():
         data = loads(data).get("result")
-        if ("-" in data["amount"]):
+        if (data == None) or ("-" in data["amount"]):
             continue
         
         num_confirmations = int(data["num_confirmations"])
@@ -32,36 +32,26 @@ def start():
                 payload = loads(payload)
 
             redis.delete(f"torch.light.address.{address}")
-            if (payload["type"] != "loop-in"):
+
+            tx = loads(redis.get("torch.light.tx." + payload["id"]))
+            if (sats_to_btc(amount) < (tx["from"]["amount"])):
                 continue
             
-            if (sats_to_btc(amount) < (payload["amount"] + payload["fee"])):
+            feerate = (SERVICE_FEE_RATE * 25 / 100)
+            fee_limit_sat = btc_to_sats((tx["from"]["amount"] - amount) * feerate / 100)
+
+            invoice = payload["invoice"]
+            pay = lnd.pay_invoice(invoice, fee_limit_sat=fee_limit_sat)
+            if (pay == None) or (pay["status"] != "SUCCEEDED"):
                 continue
             
-            if (payload["base"] == "BTC") and (payload["quote"] == "LN-BTC"):
-                feerate = (SERVICE_FEE_RATE * 25 / 100)
-                fee_limit_sat = btc_to_sats(payload["fee"] * feerate / 100)
-                invoice = payload["invoice"]
-                pay = lnd.pay_invoice(invoice, fee_limit_sat=fee_limit_sat)
-                if (pay == None):
-                    continue
-                
-                if (pay["status"] != "SUCCEEDED"):
-                    continue
-                
-                tx = {
-                    "id": payload["id"],
-                    "invoice": invoice, 
-                    "amount": sats_to_btc(amount),
-                    "feerate": sats_to_btc(fee_limit_sat),
-                    "txid": txid,
-                    "type": payload["type"],
-                    "status": "settled",
-                    "created_at": payload["created_at"],
-                    "updated_at": time()
-                }
-                db.insert(tx)
-                    
+            redis.delete("torch.light.tx." + payload["id"])
+            
+            tx["from"]["status"] = "settled"
+            tx["to"]["status"] = "settled"
+            tx["to"]["txid"] = txid
+            tx["updated_at"] = time()
+            db.insert(tx)
 
 def get_balance() -> dict:
     return lnd.wallet_balance()
