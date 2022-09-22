@@ -35,30 +35,28 @@ def start():
             payload = loads(payload)
         
         metadata = payload["metadata"]
-        if (payload["type"] == "loop-out"):
-            amount = btc_to_sats(metadata["amount"])
-            if (amount > int(lookup_invoice["value"])):
-                continue
+        amount = btc_to_sats(metadata["amount"])
+        if (amount > int(lookup_invoice["value"])):
+            continue
             
-            address = metadata["address"]
-            feerate = metadata["feerate"]
+        address = metadata["address"]
+        feerate = metadata["feerate"]
 
-            redis.delete(f"torch.light.invoice.{payment_hash}")
-            if (metadata["quote"] == "BTC"):
-                tx = lnd.send_coins(address, amount, sat_per_vbyte=feerate)
-                tx = {
-                    "id": payment_hash,
-                    "address": address, 
-                    "amount": sats_to_btc(amount),
-                    "feerate":  feerate,
-                    "txid": tx["txid"],
-                    "type": payload["type"],
-                    "status": "settled",
-                    "created_at": metadata["created_at"],
-                    "updated_at": time()
-                }
-                db.insert(tx)
-            
+        redis.delete(f"torch.light.invoice.{payment_hash}")
+
+        # Create an unchain transaction with address 
+        # specified in the contract.
+        send_coins = lnd.send_coins(address, amount, sat_per_vbyte=feerate)
+
+        tx = loads(redis.get(f"torch.light.tx.{payment_hash}"))
+        tx["from"]["status"] = "settled"
+        tx["to"]["status"] = "settled"
+        tx["to"]["txid"] = send_coins["txid"]
+        tx["updated_at"] = time()
+        db.insert(tx)
+
+        redis.delete(f"torch.light.tx.{payment_hash}")
+
 def create_invoice(amount: float, memo="", expiry=86400, metadata={}, typeof="loop-out") -> dict:
     amount = round(amount * pow(10, 8))
 
@@ -69,7 +67,7 @@ def create_invoice(amount: float, memo="", expiry=86400, metadata={}, typeof="lo
     
     # Relate a user to a payment has and 
     # add an expiration time. 
-    payload = {"metadata": metadata, "type": typeof}
+    payload = {"type": typeof, "metadata": metadata}
     
     # Get the hashed payment.
     payment_hash = b64decode(invoice["r_hash"]).hex()
