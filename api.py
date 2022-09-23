@@ -2,6 +2,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from services.bitcoin import get_estimate_fee, get_new_address, bitcoin
 from helpers.helpers import sats_to_btc
 from models.schemas import LoopinSchema, LoopoutSchema
+from services.lnd import lnd
 from services import loop
 from configs import API_HOST, API_PORT, LOOP_MIN_BTC, SERVICE_FEE_RATE, SERVICE_MIN_FEE_RATE
 from fastapi import FastAPI, HTTPException
@@ -45,7 +46,7 @@ def info():
 
 @api.get("/api/v1/estimate/fee")
 def estimate_fee(address: str = None, amount: float = 0, feerate: float = 1):
-    if (address == None) or (amount == 0):
+    if (address == None) or (amount <= 0) or (feerate <= 0):
         raise HTTPException(500)
 
     if (bitcoin.validate_address(address)["isvalid"] == False):
@@ -62,6 +63,14 @@ def estimate_fee(address: str = None, amount: float = 0, feerate: float = 1):
     fee_sat = int((fee_sat / feerate_sat_per_byte) * feerate)
     fee_btc = sats_to_btc(fee_sat)
     return {"fee_sats": fee_sat, "fee_btc": fee_btc}
+
+@api.get("/api/v1/decode/invoice/{payment_request}")
+def decode_invoice(payment_request: str):
+    decode_invoice = lnd.decode_invoice(payment_request)
+    if (decode_invoice.get("destination") == None):
+        raise HTTPException(500, "Invoice invalid.")
+    else:
+        return decode_invoice
 
 def start():
     uvicorn.run(api, host=API_HOST, port=API_PORT)
