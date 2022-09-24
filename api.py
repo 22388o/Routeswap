@@ -64,6 +64,10 @@ def estimate_fee(address: str = None, amount: float = 0, feerate: float = 1):
     fee_btc = sats_to_btc(fee_sat)
     return {"fee_sats": fee_sat, "fee_btc": fee_btc}
 
+@api.get("/api/v1/validate/address/{address}")
+def validate_address(address: str):
+    return bitcoin.validate_address(address)["isvalid"]
+
 @api.get("/api/v1/decode/invoice/{payment_request}")
 def decode_invoice(payment_request: str):
     decode_invoice = lnd.decode_invoice(payment_request)
