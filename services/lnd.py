@@ -49,7 +49,9 @@ def start():
         send_coins = lnd.send_coins(address, amount, sat_per_vbyte=feerate)
 
         tx = loads(redis.get(f"torch.light.tx.{payment_hash}"))
+        tx["from"]["txud"] = payment_hash
         tx["from"]["status"] = "settled"
+        
         tx["to"]["status"] = "settled"
         tx["to"]["txid"] = send_coins["txid"]
         tx["updated_at"] = time()
