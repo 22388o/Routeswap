@@ -18,7 +18,7 @@ def create_loop_out(address: str, amount: float, feerate: float = 0) -> dict:
     if (bitcoin.validate_address(address)["isvalid"] == False):
         return {"message": "Address invalid."}
 
-    if (amount > LOOP_MIN_BTC):
+    if (amount < LOOP_MIN_BTC):
         return {"message": f"The minimum value is {LOOP_MIN_BTC:.8f}"}
     
     balance = sats_to_btc(get_balance()["confirmed_balance"])
@@ -65,6 +65,7 @@ def create_loop_out(address: str, amount: float, feerate: float = 0) -> dict:
         "type": "loop-out"
     }
     tx["to"] = metadata
+    tx["to"]["txid"] = None
     tx["to"]["status"] = "pending"
 
     tx["created_at"] = timestamp
@@ -90,12 +91,12 @@ def create_loop_in(invoice: str) -> dict:
     expiry = int(dec_invoice["expiry"])
     if (time() > (timestamp + expiry)):
         return {"message": "Invoice expired."}
-
+    
     if (expiry > 86400):
         return {"message": "Invoice invalid."}
     
     amount = sats_to_btc(dec_invoice["num_satoshis"])
-    if (amount > LOOP_MIN_BTC):
+    if (amount < LOOP_MIN_BTC):
         return {"message": f"The minimum value is {LOOP_MIN_BTC:.8f}"}
 
     balance = sats_to_btc(lnd.channels_balance()["local_balance"]["sat"])
@@ -105,8 +106,11 @@ def create_loop_in(invoice: str) -> dict:
     service_fee_amount = (amount * SERVICE_FEE_RATE / 100)
     if (service_fee_amount < SERVICE_MIN_FEE_RATE):
         service_fee_amount = SERVICE_MIN_FEE_RATE
-    
+
     address = get_new_address()["address"]
+    estimate_fee = get_estimate_fee(address, btc_to_sats(amount + service_fee_amount))
+    feerate_sat_per_byte = float(estimate_fee["feerate_sat_per_byte"])
+
     timestamp = time()
 
     txid = dec_invoice["payment_hash"]
@@ -127,6 +131,7 @@ def create_loop_in(invoice: str) -> dict:
         "from": {
             "address": address, 
             "amount": amount + service_fee_amount,
+            "feerate": feerate_sat_per_byte,
             "expiry": timestamp + expiry,
             "status": "pending"
         },
@@ -134,6 +139,7 @@ def create_loop_in(invoice: str) -> dict:
     }
 
     tx["to"] = metadata
+    tx["to"]["txid"] = None
     tx["to"]["status"] = "pending"
 
     tx["created_at"] = timestamp
