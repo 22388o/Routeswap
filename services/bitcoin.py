@@ -47,10 +47,14 @@ def start():
             
             redis.delete("torch.light.tx." + payload["id"])
             
+            tx["from"]["txid"] = txid
             tx["from"]["status"] = "settled"
+
             tx["to"]["status"] = "settled"
-            tx["to"]["txid"] = txid
+            tx["to"]["txid"] = pay["payment_hash"]
+
             tx["updated_at"] = time()
+
             db.insert(tx)
 
 def get_balance() -> dict:
