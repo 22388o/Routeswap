@@ -1,4 +1,4 @@
-# LN Swap
+# LN Swap (Backend)
 
 A simple on-chain / Lightning Swap services.
 
