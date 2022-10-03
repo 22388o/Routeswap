@@ -16,11 +16,8 @@ api.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 def loop_out(data: LoopoutSchema):
     if (LOOP_OUT_ACTIVE == False):
         raise HTTPException(501)
-    
-    address = data.address
-    feerate = data.feerate
-    amount = data.amount
-    loop_out = loop.create_loop_out(address, amount, feerate=feerate)
+
+    loop_out = loop.create_loop_out(data.address, data.amount, feerate=data.feerate, webhook=data.webhook)
     if (loop_out.get("message") != None):
         raise HTTPException(500, detail=loop_out["message"])
     else:
@@ -31,7 +28,7 @@ def loop_in(data: LoopinSchema):
     if (LOOP_IN_ACTIVE == False):
         raise HTTPException(501)
     
-    loop_in = loop.create_loop_in(data.invoice)
+    loop_in = loop.create_loop_in(data.invoice, webhook=data.webhook)
     if (loop_in.get("message") != None):
         raise HTTPException(500, detail=loop_in["message"])
     else:

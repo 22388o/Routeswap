@@ -8,6 +8,8 @@ from json import dumps, loads
 from time import time
 from lnd import Lnd
 
+import requests
+
 lnd = Lnd(LND_HOST, LND_MACAROON, LND_CERTIFICATE)
 
 def start():
@@ -57,6 +59,12 @@ def start():
         tx["updated_at"] = time()
         db.insert(tx)
 
+        if tx.get("webhook"):
+            try:
+                requests.post(tx["webhook"], json=tx)
+            except:
+                pass
+        
         redis.delete(f"torch.light.tx.{payment_hash}")
 
 def create_invoice(amount: float, memo="", expiry=86400, metadata={}, typeof="loop-out") -> dict:

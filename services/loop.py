@@ -11,7 +11,7 @@ from tinydb import Query
 from time import time
 from json import dumps, loads
 
-def create_loop_out(address: str, amount: float, feerate: float = 0) -> dict:
+def create_loop_out(address: str, amount: float, feerate: float = 0, webhook=None) -> dict:
     if (feerate < 1):
         return {"message": "Ferrate minimum is 1 sats / vbytes."}
 
@@ -69,9 +69,10 @@ def create_loop_out(address: str, amount: float, feerate: float = 0) -> dict:
     tx["to"]["txid"] = None
     tx["to"]["status"] = "pending"
 
+    tx["webhook"] = webhook
     tx["created_at"] = timestamp
     tx["updated_at"] = timestamp
-
+    
     del tx["to"]["updated_at"]
     del tx["to"]["created_at"]
 
@@ -79,7 +80,7 @@ def create_loop_out(address: str, amount: float, feerate: float = 0) -> dict:
     redis.expire(f"torch.light.tx.{txid}", expiry)
     return tx
 
-def create_loop_in(invoice: str) -> dict:
+def create_loop_in(invoice: str, webhook=None) -> dict:
     try:
         dec_invoice = decode_invoice(invoice)
     except:
@@ -142,7 +143,8 @@ def create_loop_in(invoice: str) -> dict:
     tx["to"] = metadata
     tx["to"]["txid"] = None
     tx["to"]["status"] = "pending"
-
+    
+    tx["webhook"] = webhook
     tx["created_at"] = timestamp
     tx["updated_at"] = timestamp
 

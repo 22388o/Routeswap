@@ -8,6 +8,8 @@ from configs import BTC_HOST, BTC_PASS, BTC_USER, SERVICE_FEE_RATE
 from json import loads
 from time import time
 
+import requests
+
 bitcoin = Bitcoin(BTC_HOST)
 bitcoin.auth(BTC_USER, BTC_PASS)
 
@@ -57,6 +59,12 @@ def start():
 
             db.insert(tx)
 
+            if tx.get("webhook"):
+                try:
+                    requests.post(tx["webhook"], json=tx)
+                except:
+                    pass
+            
 def get_balance() -> dict:
     return lnd.wallet_balance()
 
