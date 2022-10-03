@@ -4,7 +4,7 @@ from helpers.helpers import sats_to_btc
 from models.schemas import LoopinSchema, LoopoutSchema
 from services.lnd import lnd
 from services import loop
-from configs import API_HOST, API_PORT, LOOP_MIN_BTC, SERVICE_FEE_RATE, SERVICE_MIN_FEE_RATE
+from configs import API_HOST, API_PORT, LOOP_IN_ACTIVE, LOOP_MIN_BTC, LOOP_OUT_ACTIVE, SERVICE_FEE_RATE, SERVICE_MIN_FEE_RATE
 from fastapi import FastAPI, HTTPException
 
 import uvicorn
@@ -14,10 +14,12 @@ api.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 
 @api.post("/api/v1/loop/out")
 def loop_out(data: LoopoutSchema):
+    if (LOOP_OUT_ACTIVE == False):
+        raise HTTPException(501)
+    
     address = data.address
     feerate = data.feerate
     amount = data.amount
-
     loop_out = loop.create_loop_out(address, amount, feerate=feerate)
     if (loop_out.get("message") != None):
         raise HTTPException(500, detail=loop_out["message"])
@@ -26,6 +28,9 @@ def loop_out(data: LoopoutSchema):
 
 @api.post("/api/v1/loop/in")
 def loop_in(data: LoopinSchema):
+    if (LOOP_IN_ACTIVE == False):
+        raise HTTPException(501)
+    
     loop_in = loop.create_loop_in(data.invoice)
     if (loop_in.get("message") != None):
         raise HTTPException(500, detail=loop_in["message"])
