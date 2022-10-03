@@ -59,6 +59,7 @@ def create_loop_out(address: str, amount: float, feerate: float = 0) -> dict:
         "id": txid,
         "from": {
             "invoice": payment_request["payment_request"], 
+            "amount": service_fee_and_tx_amount,
             "expiry": timestamp + expiry,
             "status": "pending"
         },
@@ -108,9 +109,9 @@ def create_loop_in(invoice: str) -> dict:
         service_fee_amount = SERVICE_MIN_FEE_RATE
 
     address = get_new_address()["address"]
-    estimate_fee = get_estimate_fee(address, btc_to_sats(amount + service_fee_amount))
+    estimate_fee = get_estimate_fee(address, btc_to_sats(amount + service_fee_amount), target_conf=6)
     feerate_sat_per_byte = float(estimate_fee["feerate_sat_per_byte"])
-
+    
     timestamp = time()
 
     txid = dec_invoice["payment_hash"]
