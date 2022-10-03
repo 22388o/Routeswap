@@ -19,6 +19,18 @@ SUPPORTED_CURRENCIES = environ.get("SUPPORTED_CURRENCIES", "LN-BTC,BTC").split("
 
 # Loop configuration.
 LOOP_MIN_BTC = float(environ.get("LOOP_MIN_BTC", 0.00010000))
+LOOP_IN_ACTIVE = environ.get("LOOP_IN_ACTIVE", True)
+if (LOOP_IN_ACTIVE == "true") or (LOOP_IN_ACTIVE == True):
+    LOOP_IN_ACTIVE = True
+else:
+    LOOP_IN_ACTIVE = False
+
+LOOP_OUT_ACTIVE = environ.get("LOOP_OUT_ACTIVE", True)
+if (LOOP_OUT_ACTIVE == "true") or (LOOP_OUT_ACTIVE == True):
+    LOOP_OUT_ACTIVE = True
+else:
+    LOOP_OUT_ACTIVE = False
+
 SERVICE_FEE_RATE = float(environ.get("SERVICE_FEE_RATE", 1))
 SERVICE_MIN_FEE_RATE = float(environ.get("SERVICE_MIN_FEE_RATE", 0.00000500))
 
