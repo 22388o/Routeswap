@@ -50,7 +50,7 @@ def info():
     return {"LOOP_MIN_BTC": LOOP_MIN_BTC, "SERVICE_FEE_RATE": SERVICE_FEE_RATE, "SERVICE_MIN_FEE_RATE": SERVICE_MIN_FEE_RATE,}
 
 @api.get("/api/v1/estimate/fee")
-def estimate_fee(address: str = None, amount: float = 0, feerate: float = 1):
+def estimate_fee(address: str = None, amount: float = 0, target_conf=144, feerate: float = 1):
     if (address == None) or (amount <= 0) or (feerate <= 0):
         raise HTTPException(500)
 
@@ -58,7 +58,7 @@ def estimate_fee(address: str = None, amount: float = 0, feerate: float = 1):
         address = get_new_address()["address"]
 
     amount = int(amount * pow(10, 8))
-    estimate_fee = get_estimate_fee(address, amount)
+    estimate_fee = get_estimate_fee(address, amount, target_conf=target_conf)
     if not (estimate_fee.get("fee_sat")):
         raise HTTPException(500)
     
