@@ -1,165 +1,88 @@
-from services.lightning import create_invoice, decode_invoice
-from services.bitcoin import bitcoin, get_balance, get_estimate_fee, get_new_address
-from helpers.helpers import sats_to_btc, btc_to_sats
+from helpers.helpers import btc_to_sats, sats_to_btc
 from services.redis import redis
-from services.lnd import lnd
-
 from database import db
-from configs import SERVICE_FEE_RATE, SERVICE_MIN_FEE_RATE, LOOP_MIN_BTC
+from configs import LN_BACKEND, LND_HOST, LND_MACAROON, LND_CERTIFICATE
 
-from tinydb import Query
-from time import time
+from base64 import b64decode
 from json import dumps, loads
+from time import time
+from lnd import Lnd
 
-def create_loop_out(address: str, amount: float, feerate: float = 0) -> dict:
-    if (feerate < 1):
-        return {"message": "Ferrate minimum is 1 sats / vbytes."}
+import requests
 
-    if (bitcoin.validate_address(address)["isvalid"] == False):
-        return {"message": "Address invalid."}
+lnd = Lnd(LND_HOST, LND_MACAROON, LND_CERTIFICATE)
 
-    if (amount < LOOP_MIN_BTC):
-        return {"message": f"The minimum value is {LOOP_MIN_BTC:.8f}"}
+def start():
+    if (LN_BACKEND != "lnd"):
+        return
     
-    balance = sats_to_btc(get_balance()["confirmed_balance"])
-    if (amount > balance):
-        return {"message": "We are short of liquidity at the moment."}
-
-    amount_sats = btc_to_sats(amount)
-    
-    estimate_fee = get_estimate_fee(address, amount_sats)
-    estimate_fee = (int(estimate_fee["fee_sat"]) / int(estimate_fee["feerate_sat_per_byte"]))
-    estimate_fee = int(estimate_fee * feerate)
-
-    service_fee_amount = amount * SERVICE_FEE_RATE / 100
-    if (service_fee_amount < SERVICE_MIN_FEE_RATE):
-        service_fee_amount = SERVICE_MIN_FEE_RATE
-    
-    estimate_fee_btc = sats_to_btc(estimate_fee)
-    service_fee_and_tx_amount = (service_fee_amount + estimate_fee_btc + amount)
+    for data in lnd.invoice_subscribe().iter_lines():
+        data = loads(data).get("result")
+        if not (data) or (data["state"] != "SETTLED"):
+            continue
         
-    expiry = (60 * 15)
-    timestamp = time()
-    metadata = {
-        "address": address, 
-        "amount": amount, 
-        "feerate": feerate, 
-        "created_at": timestamp,
-        "updated_at": timestamp
-    }
-    payment_request = create_invoice(
-        amount=service_fee_and_tx_amount, 
-        expiry=expiry, 
-        metadata=metadata, 
-        typeof="loop-out"
-    )
-    
-    txid = payment_request["payment_hash"]
-    tx = {
-        "id": txid,
-        "from": {
-            "invoice": payment_request["payment_request"], 
-            "expiry": timestamp + expiry,
-            "status": "pending"
-        },
-        "type": "loop-out"
-    }
-    tx["to"] = metadata
-    tx["to"]["txid"] = None
-    tx["to"]["status"] = "pending"
+        # Decode base64 and encode the bytes in hex.
+        payment_hash = b64decode(data["r_hash"]).hex()
 
-    tx["created_at"] = timestamp
-    tx["updated_at"] = timestamp
-
-    del tx["to"]["updated_at"]
-    del tx["to"]["created_at"]
-
-    redis.set(f"torch.light.tx.{txid}", dumps(tx))
-    redis.expire(f"torch.light.tx.{txid}", expiry)
-    return tx
-
-def create_loop_in(invoice: str) -> dict:
-    try:
-        dec_invoice = decode_invoice(invoice)
-    except:
-        return {"message": "Invoice invalid."}
-
-    if (lnd.lookup_invoice(dec_invoice["payment_hash"]).get("settled")):
-        return {"message": "The invoice has already been paid."}
-
-    timestamp = int(dec_invoice["timestamp"])
-    expiry = int(dec_invoice["expiry"])
-    if (time() > (timestamp + expiry)):
-        return {"message": "Invoice expired."}
-    
-    if (expiry > 86400):
-        return {"message": "Invoice invalid."}
-    
-    amount = sats_to_btc(dec_invoice["num_satoshis"])
-    if (amount < LOOP_MIN_BTC):
-        return {"message": f"The minimum value is {LOOP_MIN_BTC:.8f}"}
-
-    balance = sats_to_btc(lnd.channels_balance()["local_balance"]["sat"])
-    if (amount > balance):
-        return {"message": "We are short of liquidity at the moment."}
-
-    service_fee_amount = (amount * SERVICE_FEE_RATE / 100)
-    if (service_fee_amount < SERVICE_MIN_FEE_RATE):
-        service_fee_amount = SERVICE_MIN_FEE_RATE
-
-    address = get_new_address()["address"]
-    estimate_fee = get_estimate_fee(address, btc_to_sats(amount + service_fee_amount))
-    feerate_sat_per_byte = float(estimate_fee["feerate_sat_per_byte"])
-
-    timestamp = time()
-
-    txid = dec_invoice["payment_hash"]
-    metadata = {
-        "id": txid, 
-        "amount": amount, 
-        "invoice": invoice, 
-        "created_at": timestamp,
-        "updated_at": timestamp
-    }
-
-    redis.set(f"torch.light.address.{address}", dumps(metadata))
-    redis.expire(f"torch.light.address.{address}", expiry)
-
-    txid = metadata["id"]
-    tx = {
-        "id": txid,
-        "from": {
-            "address": address, 
-            "amount": amount + service_fee_amount,
-            "feerate": feerate_sat_per_byte,
-            "expiry": timestamp + expiry,
-            "status": "pending"
-        },
-        "type": "loop-in"
-    }
-
-    tx["to"] = metadata
-    tx["to"]["txid"] = None
-    tx["to"]["status"] = "pending"
-
-    tx["created_at"] = timestamp
-    tx["updated_at"] = timestamp
-
-    del tx["to"]["updated_at"]
-    del tx["to"]["created_at"]
-    del tx["to"]["id"]
-    
-    redis.set(f"torch.light.tx.{txid}", dumps(tx))
-    redis.expire(f"torch.light.tx.{txid}", expiry)
-    return tx
-
-def get_transaction(txid: str) -> dict:
-    tx = db.get(Query().id == txid)
-    if (tx == None):
-        tx = redis.get(f"torch.light.tx.{txid}")
-        if (tx == None):
-            return {"message": "TxID not found."}
+        # Fetch hash payment information.
+        lookup_invoice = lnd.lookup_invoice(payment_hash)
+        if (lookup_invoice["state"] != "SETTLED"):
+            continue
+                
+        # Get the user_id of payment_hash in redis.
+        payload = redis.get(f"torch.light.invoice.{payment_hash}")
+        if (payload == None):
+            continue
         else:
-            return loads(tx)
-    else:
-        return tx
+            payload = loads(payload)
+        
+        metadata = payload["metadata"]
+        amount = btc_to_sats(metadata["amount"])
+        if (amount > int(lookup_invoice["value"])):
+            continue
+            
+        address = metadata["address"]
+        feerate = metadata["feerate"]
+
+        redis.delete(f"torch.light.invoice.{payment_hash}")
+
+        # Create an unchain transaction with address 
+        # specified in the contract.
+        send_coins = lnd.send_coins(address, amount, sat_per_vbyte=feerate)
+
+        tx = loads(redis.get(f"torch.light.tx.{payment_hash}"))
+        tx["from"]["txud"] = payment_hash
+        tx["from"]["status"] = "settled"
+        
+        tx["to"]["status"] = "settled"
+        tx["to"]["txid"] = send_coins["txid"]
+        tx["updated_at"] = time()
+        db.insert(tx)
+
+        if tx.get("webhook"):
+            try:
+                requests.post(tx["webhook"], json=tx)
+            except:
+                pass
+        
+        redis.delete(f"torch.light.tx.{payment_hash}")
+
+def create_invoice(amount: float, memo="", expiry=86400, metadata={}, typeof="loop-out") -> dict:
+    amount = round(amount * pow(10, 8))
+
+    # Generate lightning invoice.
+    invoice = lnd.create_invoice(amount, memo, expiry)
+    if invoice.get("error"):
+        return {"message": "There was a problem trying to create a new invoice."}
+    
+    # Relate a user to a payment has and 
+    # add an expiration time. 
+    payload = {"type": typeof, "metadata": metadata}
+    
+    # Get the hashed payment.
+    payment_hash = b64decode(invoice["r_hash"]).hex()
+    
+    # Relate payment_hash to user id.
+    redis.set(f"torch.light.invoice.{payment_hash}", dumps(payload))
+    redis.expire(f"torch.light.invoice.{payment_hash}", expiry)
+    return {"payment_hash": payment_hash, "payment_request": invoice["payment_request"], "expiry": expiry}
