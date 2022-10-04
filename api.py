@@ -4,7 +4,7 @@ from helpers.helpers import sats_to_btc
 from models.schemas import LoopinSchema, LoopoutSchema
 from services.lnd import lnd
 from services import loop
-from configs import API_HOST, API_PORT, LOOP_MIN_BTC, SERVICE_FEE_RATE, SERVICE_MIN_FEE_RATE
+from configs import API_HOST, API_PORT, LOOP_IN_ACTIVE, LOOP_MIN_BTC, LOOP_OUT_ACTIVE, SERVICE_FEE_RATE, SERVICE_MIN_FEE_RATE
 from fastapi import FastAPI, HTTPException
 
 import uvicorn
@@ -14,11 +14,10 @@ api.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 
 @api.post("/api/v1/loop/out")
 def loop_out(data: LoopoutSchema):
-    address = data.address
-    feerate = data.feerate
-    amount = data.amount
+    if (LOOP_OUT_ACTIVE == False):
+        raise HTTPException(501)
 
-    loop_out = loop.create_loop_out(address, amount, feerate=feerate)
+    loop_out = loop.create_loop_out(data.address, data.amount, feerate=data.feerate, webhook=data.webhook)
     if (loop_out.get("message") != None):
         raise HTTPException(500, detail=loop_out["message"])
     else:
@@ -26,7 +25,10 @@ def loop_out(data: LoopoutSchema):
 
 @api.post("/api/v1/loop/in")
 def loop_in(data: LoopinSchema):
-    loop_in = loop.create_loop_in(data.invoice)
+    if (LOOP_IN_ACTIVE == False):
+        raise HTTPException(501)
+    
+    loop_in = loop.create_loop_in(data.invoice, webhook=data.webhook)
     if (loop_in.get("message") != None):
         raise HTTPException(500, detail=loop_in["message"])
     else:
@@ -45,7 +47,7 @@ def info():
     return {"LOOP_MIN_BTC": LOOP_MIN_BTC, "SERVICE_FEE_RATE": SERVICE_FEE_RATE, "SERVICE_MIN_FEE_RATE": SERVICE_MIN_FEE_RATE,}
 
 @api.get("/api/v1/estimate/fee")
-def estimate_fee(address: str = None, amount: float = 0, feerate: float = 1):
+def estimate_fee(address: str = None, amount: float = 0, target_conf=144, feerate: float = 1):
     if (address == None) or (amount <= 0) or (feerate <= 0):
         raise HTTPException(500)
 
@@ -53,7 +55,7 @@ def estimate_fee(address: str = None, amount: float = 0, feerate: float = 1):
         address = get_new_address()["address"]
 
     amount = int(amount * pow(10, 8))
-    estimate_fee = get_estimate_fee(address, amount)
+    estimate_fee = get_estimate_fee(address, amount, target_conf=target_conf)
     if not (estimate_fee.get("fee_sat")):
         raise HTTPException(500)
     
